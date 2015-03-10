@@ -900,6 +900,7 @@ JS;
 JS;
         $this->withSyn()->executeJsOnElement($destination, $script);
         
+        sleep(1);
         $this->wdSession->buttonup();
     }
 
