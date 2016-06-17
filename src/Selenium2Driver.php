@@ -10,10 +10,8 @@
 
 namespace Behat\Mink\Driver;
 
-use Behat\Mink\Element\NodeElement;
 use Behat\Mink\Exception\DriverException;
 use Behat\Mink\Selector\Xpath\Escaper;
-use Behat\Mink\Session;
 use WebDriver\Element;
 use WebDriver\Exception\NoSuchElement;
 use WebDriver\Exception\UnknownError;
@@ -28,12 +26,6 @@ use WebDriver\WebDriver;
  */
 class Selenium2Driver extends CoreDriver
 {
-    /**
-     * The current Mink session
-     * @var Session
-     */
-    private $session;
-
     /**
      * Whether the browser has been started
      * @var Boolean
@@ -105,12 +97,21 @@ class Selenium2Driver extends CoreDriver
      * See http://code.google.com/p/selenium/wiki/DesiredCapabilities
      *
      * @param array $desiredCapabilities an array of capabilities to pass on to the WebDriver server
+     *
+     * @throws DriverException
      */
     public function setDesiredCapabilities($desiredCapabilities = null)
     {
-        if (null === $desiredCapabilities) {
-            $desiredCapabilities = self::getDefaultCapabilities();
+        if ($this->started) {
+            throw new DriverException("Unable to set desiredCapabilities, the session has already started");
         }
+
+        if (null === $desiredCapabilities) {
+            $desiredCapabilities = array();
+        }
+
+        // Join $desiredCapabilities with defaultCapabilities
+        $desiredCapabilities = array_replace(self::getDefaultCapabilities(), $desiredCapabilities);
 
         if (isset($desiredCapabilities['firefox'])) {
             foreach ($desiredCapabilities['firefox'] as $capability => $value) {
@@ -146,6 +147,16 @@ class Selenium2Driver extends CoreDriver
         }
 
         $this->desiredCapabilities = $desiredCapabilities;
+    }
+
+    /**
+     * Gets the desiredCapabilities
+     *
+     * @return array $desiredCapabilities
+     */
+    public function getDesiredCapabilities()
+    {
+        return $this->desiredCapabilities;
     }
 
     /**
@@ -204,7 +215,7 @@ class Selenium2Driver extends CoreDriver
         ));
 
         if (!$hasSyn) {
-            $synJs = file_get_contents(__DIR__.'/Selenium2/syn.js');
+            $synJs = file_get_contents(__DIR__.'/Resources/syn.js');
             $this->wdSession->execute(array(
                 'script' => $synJs,
                 'args'   => array()
@@ -289,14 +300,6 @@ class Selenium2Driver extends CoreDriver
     /**
      * {@inheritdoc}
      */
-    public function setSession(Session $session)
-    {
-        $this->session = $session;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
     public function start()
     {
         try {
@@ -315,7 +318,7 @@ class Selenium2Driver extends CoreDriver
     /**
      * Sets the timeouts to apply to the webdriver session
      *
-     * @param array $timeouts The session timeout settings: Array of {script, implicit, page} => time in microsecconds
+     * @param array $timeouts The session timeout settings: Array of {script, implicit, page} => time in milliseconds
      *
      * @throws DriverException
      */
@@ -444,7 +447,7 @@ class Selenium2Driver extends CoreDriver
 
         $cookieArray = array(
             'name'   => $name,
-            'value'  => (string) $value,
+            'value'  => urlencode($value),
             'secure' => false, // thanks, chibimagic!
         );
 
@@ -499,13 +502,13 @@ class Selenium2Driver extends CoreDriver
     /**
      * {@inheritdoc}
      */
-    public function find($xpath)
+    public function findElementXpaths($xpath)
     {
         $nodes = $this->wdSession->elements('xpath', $xpath);
 
         $elements = array();
         foreach ($nodes as $i => $node) {
-            $elements[] = new NodeElement(sprintf('(%s)[%d]', $xpath, $i+1), $this->session);
+            $elements[] = sprintf('(%s)[%d]', $xpath, $i+1);
         }
 
         return $elements;
